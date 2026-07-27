@@ -1,0 +1,7 @@
+PRODUCT_BUNDLE_IDENTIFIER = com.staffhub.ptohub
+APP_DISPLAY_NAME = Staff Hub
+IPHONEOS_DEPLOYMENT_TARGET = 18.0
+SWIFT_VERSION = 6.0
+PTO_HUB_WEB_URL = https:/$()/staff-hub.example.com
+SUPABASE_URL = https:/$()/your-project-ref.supabase.co
+SUPABASE_PUBLISHABLE_KEY = sb_publishable_replace_me

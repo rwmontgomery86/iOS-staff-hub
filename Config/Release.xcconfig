@@ -1,0 +1,4 @@
+#include "Base.xcconfig"
+#include? "Local-Release.xcconfig"
+APS_ENVIRONMENT = production
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = RELEASE

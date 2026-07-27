@@ -1,0 +1,108 @@
+name: PTOHub
+options:
+  bundleIdPrefix: com.staffhub
+  deploymentTarget:
+    iOS: "18.0"
+  xcodeVersion: "26.0"
+  generateEmptyDirectories: true
+configs:
+  Debug: debug
+  Staging: debug
+  Release: release
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift.git
+    exactVersion: 2.46.0
+targets:
+  PTOHub:
+    type: application
+    platform: iOS
+    sources:
+      - path: PTOHub
+    dependencies:
+      - package: Supabase
+        product: Supabase
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Staging: Config/Staging.xcconfig
+      Release: Config/Release.xcconfig
+    settings:
+      base:
+        PRODUCT_NAME: PTOHub
+        PRODUCT_MODULE_NAME: PTOHub
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 1.0.0
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: $(APP_DISPLAY_NAME)
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        CODE_SIGN_ENTITLEMENTS: PTOHub/PTOHub.entitlements
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_VERSION: 6.0
+        SWIFT_STRICT_CONCURRENCY: complete
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+        SUPPORTS_MACCATALYST: NO
+        TARGETED_DEVICE_FAMILY: 1,2
+    info:
+      path: PTOHub/Info.plist
+      properties:
+        CFBundleDisplayName: $(APP_DISPLAY_NAME)
+        SUPABASE_URL: $(SUPABASE_URL)
+        SUPABASE_PUBLISHABLE_KEY: $(SUPABASE_PUBLISHABLE_KEY)
+        PTO_HUB_WEB_URL: $(PTO_HUB_WEB_URL)
+        UIBackgroundModes:
+          - remote-notification
+        UILaunchScreen: {}
+  PTOHubTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: PTOHubTests
+    dependencies:
+      - target: PTOHub
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: 6.0
+        SWIFT_STRICT_CONCURRENCY: complete
+  PTOHubUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: PTOHubUITests
+    dependencies:
+      - target: PTOHub
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: 6.0
+        TEST_TARGET_NAME: PTOHub
+schemes:
+  PTOHub:
+    build:
+      targets:
+        PTOHub: all
+        PTOHubTests: [test]
+        PTOHubUITests: [test]
+    test:
+      targets:
+        - PTOHubTests
+        - PTOHubUITests
+    run:
+      config: Debug
+    archive:
+      config: Release
+  PTOHub Staging:
+    build:
+      targets:
+        PTOHub: all
+        PTOHubTests: [test]
+    test:
+      config: Staging
+      targets:
+        - PTOHubTests
+    run:
+      config: Staging

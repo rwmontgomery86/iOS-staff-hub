@@ -1,0 +1,5 @@
+#include "Base.xcconfig"
+#include? "Local-Staging.xcconfig"
+APP_DISPLAY_NAME = Staff Hub Staging
+APS_ENVIRONMENT = development
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG STAGING

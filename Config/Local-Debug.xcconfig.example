@@ -1,0 +1,5 @@
+// Copy to Local-Debug.xcconfig. Debug should use staging, never production.
+// Keep service-role and secret keys out of every app configuration.
+SUPABASE_URL = https:/$()/your-staging-project-ref.supabase.co
+SUPABASE_PUBLISHABLE_KEY = sb_publishable_your_staging_key
+PTO_HUB_WEB_URL = https:/$()/staging.staff-hub.example.com

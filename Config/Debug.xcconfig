@@ -1,0 +1,4 @@
+#include "Base.xcconfig"
+#include? "Local-Debug.xcconfig"
+APS_ENVIRONMENT = development
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG
