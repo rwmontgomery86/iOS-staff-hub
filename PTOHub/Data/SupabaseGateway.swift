@@ -1,6 +1,20 @@
 import Foundation
 @preconcurrency import Supabase
 
+enum AuthSessionEmission: Equatable, Sendable {
+    case authenticated(UUID)
+    case signedOut
+    case awaitingRefresh
+
+    init(userID: UUID?, isExpired: Bool) {
+        guard let userID else {
+            self = .signedOut
+            return
+        }
+        self = isExpired ? .awaitingRefresh : .authenticated(userID)
+    }
+}
+
 actor SupabaseGateway: BackendServicing {
     private let client: SupabaseClient
 
@@ -18,7 +32,17 @@ actor SupabaseGateway: BackendServicing {
             let task = Task {
                 for await (_, session) in changes {
                     if Task.isCancelled { break }
-                    continuation.yield(session?.user.id)
+                    switch AuthSessionEmission(
+                        userID: session?.user.id,
+                        isExpired: session?.isExpired ?? false
+                    ) {
+                    case let .authenticated(userID):
+                        continuation.yield(userID)
+                    case .signedOut:
+                        continuation.yield(nil)
+                    case .awaitingRefresh:
+                        continue
+                    }
                 }
                 continuation.finish()
             }

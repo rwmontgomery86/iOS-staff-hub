@@ -1,6 +1,6 @@
 name: PTOHub
 options:
-  bundleIdPrefix: com.staffhub
+  bundleIdPrefix: com.secondsighttechnologies
   deploymentTarget:
     iOS: "18.0"
   xcodeVersion: "26.0"
@@ -32,6 +32,8 @@ targets:
         PRODUCT_MODULE_NAME: PTOHub
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0.0
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 28V3NG52GP
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: $(APP_DISPLAY_NAME)
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO

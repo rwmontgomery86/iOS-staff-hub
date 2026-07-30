@@ -32,9 +32,8 @@ Debug builds running in the iOS Simulator show Employee, Manager, and Owner demo
 
 ## Configuration and release inputs
 
-`Debug`, `Staging`, and `Release` use separate ignored client configurations. The provisional bundle identifier remains `com.staffhub.ptohub` until the final identifier is selected. Before TestFlight, supply:
+`Debug`, `Staging`, and `Release` use separate ignored client configurations. The release identity is `com.secondsighttechnologies.staffhub` under Apple signing team `28V3NG52GP`. Before TestFlight, complete:
 
-- Final bundle identifier and Apple signing team
 - APNs key (`.p8`), Apple team ID, and key ID to the server environment
 - Production Supabase URL and publishable key in the release configuration
 - Associated App Store Connect app and unlisted-distribution approval
