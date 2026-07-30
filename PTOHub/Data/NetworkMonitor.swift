@@ -7,7 +7,7 @@ import Observation
 final class NetworkMonitor {
     private(set) var isOnline = true
     private let monitor = NWPathMonitor()
-    private let queue = DispatchQueue(label: "com.staffhub.ptohub.network")
+    private let queue = DispatchQueue(label: "com.secondsighttechnologies.staffhub.network")
     private var continuations: [UUID: AsyncStream<Bool>.Continuation] = [:]
 
     init() {

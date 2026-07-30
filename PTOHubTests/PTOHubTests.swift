@@ -207,6 +207,23 @@ final class PTOHubTests: XCTestCase {
         XCTAssertEqual(PushRouter.route(userInfo: ["kind": "system"]), .inbox)
     }
 
+    func testExpiredInitialAuthSessionWaitsForRefreshBeforeAuthenticating() {
+        let userID = UUID()
+
+        XCTAssertEqual(
+            AuthSessionEmission(userID: userID, isExpired: true),
+            .awaitingRefresh
+        )
+        XCTAssertEqual(
+            AuthSessionEmission(userID: userID, isExpired: false),
+            .authenticated(userID)
+        )
+        XCTAssertEqual(
+            AuthSessionEmission(userID: nil, isExpired: false),
+            .signedOut
+        )
+    }
+
 #if DEBUG && targetEnvironment(simulator)
     func testDemoEmployeeLoadsOnlyTheirOperationalDataAndCanSubmitLocally() async throws {
         let backend = DemoBackend(role: .employee)

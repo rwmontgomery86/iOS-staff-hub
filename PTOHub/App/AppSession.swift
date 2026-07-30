@@ -151,7 +151,7 @@ final class AppSession {
             _ = token
             try? await backend.unregisterMobileDevice(
                 installationID: push.installationID,
-                bundleID: Bundle.main.bundleIdentifier ?? "com.griffineyecare.ptohub"
+                bundleID: Bundle.main.bundleIdentifier ?? "com.secondsighttechnologies.staffhub"
             )
         }
         if !isDemo {

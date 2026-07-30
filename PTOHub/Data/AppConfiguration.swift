@@ -26,7 +26,10 @@ struct AppConfiguration: Sendable {
             supabaseURL: supabaseURL,
             supabaseKey: publishableKey,
             options: .init(
-                auth: .init(flowType: .pkce),
+                auth: .init(
+                    flowType: .pkce,
+                    emitLocalSessionAsInitialSession: true
+                ),
                 global: .init(headers: ["x-client-info": "staff-hub-ios/1.0"])
             )
         )
