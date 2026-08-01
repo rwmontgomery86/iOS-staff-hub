@@ -242,13 +242,52 @@ private struct DemoFixture {
         }
 
         let todayShiftIDs = (0..<3).map { _ in UUID() }
+        let weekStart = SchedulePresentation.weekStart(containing: today, timeZone: business.timeZone)
+        let day = { (offset: Int) in weekStart.adding(days: offset, in: business.timeZone) }
         var shifts = [
+            shift(id: UUID(), business: business, employee: employee, date: day(0), start: "09:00", end: "17:00", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: manager, date: day(0), start: "08:00", end: "16:00", title: "Manager coverage"),
+            shift(id: UUID(), business: business, employee: secondEmployee, date: day(0), start: "10:00", end: "18:00", title: "Optical floor"),
+            shift(id: UUID(), business: business, employee: thirdEmployee, date: day(0), start: "11:00", end: "17:00", title: "Front desk"),
+            shift(id: UUID(), business: business, employee: employee, date: day(1), start: "08:00", end: "17:00", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: secondEmployee, date: day(1), start: "08:30", end: "17:30", title: "Optical floor"),
+            shift(id: UUID(), business: business, employee: thirdEmployee, date: day(1), start: "09:00", end: "17:00", title: "Front desk"),
+            shift(id: UUID(), business: business, employee: fourthEmployee, date: day(1), start: "10:00", end: "18:00", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: manager, date: day(1), start: "08:00", end: "16:00", title: "Manager coverage"),
+            shift(id: UUID(), business: business, employee: owner, date: day(1), start: "11:00", end: "19:00", title: "Clinic coverage"),
+            shift(id: UUID(), business: business, employee: employee, date: day(2), start: "08:00", end: "17:00", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: manager, date: day(2), start: "08:00", end: "16:00", title: "Manager coverage", isSeriesOverride: true),
+            shift(id: UUID(), business: business, employee: secondEmployee, date: day(2), start: "09:30", end: "18:00", title: "Optical floor"),
+            shift(id: UUID(), business: business, employee: thirdEmployee, date: day(2), start: "09:00", end: "18:00", title: "Front desk"),
+            shift(id: UUID(), business: business, employee: fourthEmployee, date: day(2), start: "10:00", end: "18:30", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: owner, date: day(2), start: "11:00", end: "19:00", title: "Clinic coverage"),
+            shift(id: UUID(), business: business, employee: employee, date: day(3), start: "08:00", end: "17:00", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: secondEmployee, date: day(3), start: "08:30", end: "17:30", title: "Optical floor"),
+            shift(id: UUID(), business: business, employee: thirdEmployee, date: day(3), start: "08:00", end: "16:30", title: "Front desk"),
+            shift(id: UUID(), business: business, employee: fourthEmployee, date: day(3), start: "09:00", end: "17:00", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: manager, date: day(3), start: "10:00", end: "19:00", title: "Manager coverage"),
+            shift(id: UUID(), business: business, employee: owner, date: day(3), start: "09:00", end: "15:00", title: "Clinic coverage"),
+            shift(id: UUID(), business: business, employee: employee, date: day(4), start: "08:00", end: "17:00", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: secondEmployee, date: day(4), start: "08:30", end: "17:30", title: "Optical floor", warningFlags: ["coverage_overlap"]),
+            shift(id: UUID(), business: business, employee: thirdEmployee, date: day(4), start: "09:00", end: "18:00", title: "Front desk"),
+            shift(id: UUID(), business: business, employee: fourthEmployee, date: day(4), start: "09:30", end: "18:30", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: manager, date: day(4), start: "09:00", end: "17:00", title: "Manager coverage"),
+            shift(id: UUID(), business: business, employee: owner, date: day(4), start: "11:00", end: "19:00", title: "Clinic coverage"),
+            shift(id: UUID(), business: business, employee: employee, date: day(5), start: "08:00", end: "17:00", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: secondEmployee, date: day(5), start: "08:30", end: "17:30", title: "Optical floor"),
+            shift(id: UUID(), business: business, employee: thirdEmployee, date: day(5), start: "08:00", end: "16:00", title: "Front desk"),
+            shift(id: UUID(), business: business, employee: fourthEmployee, date: day(5), start: "10:00", end: "18:00", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: manager, date: day(5), start: "08:00", end: "16:00", title: "Manager coverage", status: .draft),
+            shift(id: UUID(), business: business, employee: owner, date: day(5), start: "12:00", end: "17:00", title: "Clinic coverage"),
             shift(id: todayShiftIDs[0], business: business, employee: employee, date: today, start: "08:00", end: "17:00", title: "Patient care"),
             shift(id: todayShiftIDs[1], business: business, employee: secondEmployee, date: today, start: "08:30", end: "17:30", title: "Optical floor"),
             shift(id: todayShiftIDs[2], business: business, employee: thirdEmployee, date: today, start: "10:00", end: "18:00", title: "Front desk"),
-            shift(id: UUID(), business: business, employee: employee, date: today.adding(days: 1), start: "09:00", end: "17:00", title: "Patient care"),
+            shift(id: UUID(), business: business, employee: manager, date: today, start: "08:00", end: "16:00", title: "Manager coverage"),
+            shift(id: UUID(), business: business, employee: owner, date: today, start: "09:00", end: "14:00", title: "Clinic coverage"),
         ]
-        if business.id != griffinID { shifts.removeLast() }
+        if business.id != griffinID {
+            shifts = Array(shifts.filter { $0.shiftDate == today }.prefix(3))
+        }
 
         let mayaSheet = Timesheet(
             id: UUID(), businessID: business.id, employeeID: employee.id, scheduledShiftID: todayShiftIDs[0],
@@ -323,14 +362,25 @@ private struct DemoFixture {
         )
     }
 
-    static func shift(id: UUID, business: Business, employee: StaffProfile, date shiftDate: DateOnly, start: String, end: String, title: String) -> ScheduledShift {
+    static func shift(
+        id: UUID,
+        business: Business,
+        employee: StaffProfile,
+        date shiftDate: DateOnly,
+        start: String,
+        end: String,
+        title: String,
+        status: ShiftStatus = .published,
+        warningFlags: [String] = [],
+        isSeriesOverride: Bool = false
+    ) -> ScheduledShift {
         let startDate = date(shiftDate, clock: start, timeZone: business.timeZone)
         return ScheduledShift(
             id: id, seriesID: nil, businessID: business.id, employeeID: employee.id,
             shiftDate: shiftDate, startsAt: startDate,
             endsAt: date(shiftDate, clock: end, timeZone: business.timeZone),
-            status: .published, title: title, notes: "Demo schedule",
-            warningFlags: [], isSeriesOverride: false,
+            status: status, title: title, notes: "Demo schedule",
+            warningFlags: warningFlags, isSeriesOverride: isSeriesOverride,
             breaks: [ScheduledBreak(
                 id: UUID(), shiftID: id, type: .unpaidMeal,
                 startsAt: startDate.addingTimeInterval(4 * 3_600), durationMinutes: 30
