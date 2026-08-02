@@ -224,7 +224,89 @@ final class PTOHubTests: XCTestCase {
         )
     }
 
+    func testScheduleWeekUsesSundayThroughSaturdayBoundaries() {
+        let timeZone = TimeZone(identifier: "America/New_York")!
+        let saturday = DateOnly(year: 2026, month: 8, day: 1)
+        let start = SchedulePresentation.weekStart(containing: saturday, timeZone: timeZone)
+        let days = SchedulePresentation.weekDays(starting: start, timeZone: timeZone)
+
+        XCTAssertEqual(start, DateOnly(year: 2026, month: 7, day: 26))
+        XCTAssertEqual(days.last, saturday)
+        XCTAssertEqual(days.count, 7)
+    }
+
+    func testScheduleVisibilityIsRoleSpecific() {
+        let businessID = UUID()
+        let employee = profile(id: UUID(), businessID: businessID, employmentType: .hourly)
+        let manager = profile(id: UUID(), businessID: businessID, employmentType: .salaried, role: .officeManager)
+        let coworkerID = UUID()
+        let ownPublished = scheduledShift(employeeID: employee.id, businessID: businessID, status: .published)
+        let ownDraft = scheduledShift(employeeID: employee.id, businessID: businessID, status: .draft)
+        let coworker = scheduledShift(employeeID: coworkerID, businessID: businessID, status: .published)
+        let cancelled = scheduledShift(employeeID: coworkerID, businessID: businessID, status: .cancelled)
+
+        XCTAssertEqual(SchedulePresentation.visibleShifts(from: [ownPublished, ownDraft, coworker, cancelled], for: employee), [ownPublished])
+        XCTAssertEqual(Set(SchedulePresentation.visibleShifts(from: [ownPublished, ownDraft, coworker, cancelled], for: manager)), Set([ownPublished, ownDraft, coworker]))
+    }
+
+    @MainActor
+    func testPersistedSessionRestoresOnBootstrapAndOrdinaryRelaunch() async throws {
+        let fixture = sessionFixture()
+        let backend = SessionTestBackend(userID: fixture.userID, identity: fixture.identity, snapshot: fixture.snapshot)
+        let cache = SessionTestCache()
+
+        let first = makeSession(backend: backend, cache: cache)
+        await first.bootstrap()
+        XCTAssertEqual(first.phase, .ready)
+        XCTAssertEqual(first.identity?.authUserID, fixture.userID)
+
+        let relaunched = makeSession(backend: backend, cache: cache)
+        await relaunched.bootstrap()
+        XCTAssertEqual(relaunched.phase, .ready)
+        XCTAssertEqual(relaunched.identity?.authUserID, fixture.userID)
+    }
+
+    @MainActor
+    func testExplicitSignOutClearsSessionAndCachedUserData() async throws {
+        let fixture = sessionFixture()
+        let backend = SessionTestBackend(userID: fixture.userID, identity: fixture.identity, snapshot: fixture.snapshot)
+        let cache = SessionTestCache()
+        let session = makeSession(backend: backend, cache: cache)
+        await session.bootstrap()
+
+        await session.signOut()
+
+        XCTAssertEqual(session.phase, .signedOut)
+        XCTAssertNil(session.identity)
+        XCTAssertNil(session.snapshot)
+        let didSignOut = await backend.didSignOut()
+        let removedUsers = await cache.removedUsers()
+        XCTAssertTrue(didSignOut)
+        XCTAssertEqual(removedUsers, [fixture.userID])
+    }
+
 #if DEBUG && targetEnvironment(simulator)
+    func testDemoSchedulesSeedTodayOnceAndKeepTimesheetLinksValid() async throws {
+        let backend = DemoBackend(role: .ownerAdmin)
+        let currentUserID = await backend.currentUserID()
+        let userID = try XCTUnwrap(currentUserID)
+        let identity = try await backend.loadIdentity(authUserID: userID)
+
+        for business in identity.businesses {
+            let snapshot = try await backend.loadSnapshot(profile: identity.profile, business: business)
+            let today = DateOnly.today(in: business.timeZone)
+            let todayShifts = snapshot.shifts.filter { $0.shiftDate == today }
+            let expectedCount = business.id == identity.profile.businessID ? 5 : 3
+
+            XCTAssertEqual(todayShifts.count, expectedCount, business.name)
+            XCTAssertEqual(Set(todayShifts.map(\.employeeID)).count, todayShifts.count, business.name)
+
+            let shiftIDs = Set(snapshot.shifts.map(\.id))
+            let linkedShiftIDs = snapshot.timesheets.compactMap(\.scheduledShiftID)
+            XCTAssertTrue(linkedShiftIDs.allSatisfy(shiftIDs.contains), business.name)
+        }
+    }
+
     func testDemoEmployeeLoadsOnlyTheirOperationalDataAndCanSubmitLocally() async throws {
         let backend = DemoBackend(role: .employee)
         let currentUserID = await backend.currentUserID()
@@ -327,4 +409,85 @@ final class PTOHubTests: XCTestCase {
             notifications: [], policy: .fallback, tiers: []
         )
     }
+
+    private func scheduledShift(employeeID: UUID, businessID: UUID, status: ShiftStatus) -> ScheduledShift {
+        ScheduledShift(
+            id: UUID(), seriesID: nil, businessID: businessID, employeeID: employeeID,
+            shiftDate: DateOnly(year: 2026, month: 8, day: 1), startsAt: .now,
+            endsAt: .now.addingTimeInterval(8 * 60 * 60), status: status,
+            title: "Office shift", notes: nil, warningFlags: [], isSeriesOverride: false, breaks: []
+        )
+    }
+
+    private func sessionFixture() -> (userID: UUID, identity: AuthenticatedIdentity, snapshot: DomainSnapshot) {
+        let userID = UUID()
+        let business = business(name: "Griffin")
+        let staff = StaffProfile(
+            id: UUID(), authUserID: userID, businessID: business.id, name: "Session Tester",
+            email: "session@example.test", role: .employee, jobTitle: "Optician",
+            hireDate: DateOnly(year: 2020, month: 1, day: 1), employmentType: .hourly,
+            fullTime: true, status: .active, avatarColor: "#557e70"
+        )
+        let identity = AuthenticatedIdentity(authUserID: userID, profile: staff, businesses: [business])
+        let snapshot = DomainSnapshot(
+            savedAt: .now, business: business, profiles: [staff], requests: [], ledger: [],
+            blackouts: [], shifts: [], timesheets: [], notifications: [], policy: .fallback, tiers: []
+        )
+        return (userID, identity, snapshot)
+    }
+
+    @MainActor
+    private func makeSession(backend: SessionTestBackend, cache: SessionTestCache) -> AppSession {
+        AppSession(
+            configuration: AppConfiguration(
+                supabaseURL: URL(string: "https://example.supabase.co")!,
+                publishableKey: "test-key",
+                webURL: URL(string: "https://example.test")!
+            ),
+            backend: backend,
+            cache: cache,
+            network: NetworkMonitor(),
+            push: PushRegistrationManager()
+        )
+    }
+}
+
+private actor SessionTestCache: SnapshotCaching {
+    private var snapshots: [String: DomainSnapshot] = [:]
+    private var removed: [UUID] = []
+
+    func load(userID: UUID, businessID: UUID) async throws -> DomainSnapshot? { snapshots["\(userID)-\(businessID)"] }
+    func save(_ snapshot: DomainSnapshot, userID: UUID, businessID: UUID) async throws { snapshots["\(userID)-\(businessID)"] = snapshot }
+    func removeAll(userID: UUID) async throws { removed.append(userID) }
+    func removedUsers() -> [UUID] { removed }
+}
+
+private actor SessionTestBackend: BackendServicing {
+    private var userID: UUID?
+    private let identity: AuthenticatedIdentity
+    private let snapshot: DomainSnapshot
+    private var signedOut = false
+
+    init(userID: UUID, identity: AuthenticatedIdentity, snapshot: DomainSnapshot) {
+        self.userID = userID
+        self.identity = identity
+        self.snapshot = snapshot
+    }
+
+    func currentUserID() async -> UUID? { userID }
+    func authUserChanges() async -> AsyncStream<UUID?> { AsyncStream { _ in } }
+    func signIn(email: String, password: String) async throws -> UUID { identity.authUserID }
+    func signOut() async throws { signedOut = true; userID = nil }
+    func loadIdentity(authUserID: UUID) async throws -> AuthenticatedIdentity { identity }
+    func loadSnapshot(profile: StaffProfile, business: Business) async throws -> DomainSnapshot { snapshot }
+    func submitRequest(profile: StaffProfile, draft: PTORequestDraft) async throws {}
+    func cancelRequest(id: UUID) async throws {}
+    func decideRequest(id: UUID, status: PTORequestStatus, note: String?) async throws {}
+    func createSchedule(businessID: UUID, actorID: UUID, draft: ScheduleDraft) async throws {}
+    func updateShift(_ update: ScheduledShiftUpdate) async throws {}
+    func markNotificationsRead(profileID: UUID) async throws {}
+    func registerMobileDevice(installationID: UUID, token: String, environment: String, bundleID: String) async throws {}
+    func unregisterMobileDevice(installationID: UUID, bundleID: String) async throws {}
+    func attendanceEvents(businessID: UUID) async -> AsyncStream<Void> { AsyncStream { _ in } }
+    func didSignOut() -> Bool { signedOut }
 }

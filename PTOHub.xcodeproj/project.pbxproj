@@ -32,6 +32,7 @@
 		B288F48D4DA6632DD068510F /* AttendanceClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C09512A61F35F06524C920BE /* AttendanceClassifier.swift */; };
 		C996480455D4D0009BC172DB /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0175996DDDEE07C6915B8366 /* DateFormatting.swift */; };
 		DB77512B39B661CE492D1882 /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 509355EA9714210C6F8911D2 /* InboxView.swift */; };
+		DBA64635647463D1C80C9DD3 /* SchedulePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFB242B3A16A6AC9F0228CED /* SchedulePresentation.swift */; };
 		F30EF5F9DB146485CD1B7996 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDBE8193EC674D45732867EB /* HomeView.swift */; };
 		F582139E04F74CD808D77861 /* PTOHubUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F37F8BA0AAAE6A8B33D8F0 /* PTOHubUITests.swift */; };
 /* End PBXBuildFile section */
@@ -76,6 +77,7 @@
 		A5C58E10937FD7A484EFE883 /* DemoBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoBackend.swift; sourceTree = "<group>"; };
 		A61E153A0332EAE2368B24E7 /* PTOHub.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PTOHub.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A6F254B944C97F44B77C3FB2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		AFB242B3A16A6AC9F0228CED /* SchedulePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulePresentation.swift; sourceTree = "<group>"; };
 		BCD408299D2CAB7A0B82DB57 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		C09512A61F35F06524C920BE /* AttendanceClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceClassifier.swift; sourceTree = "<group>"; };
 		CE8106080A7E209BFD69A9EF /* TimeOffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeOffView.swift; sourceTree = "<group>"; };
@@ -185,6 +187,7 @@
 				C09512A61F35F06524C920BE /* AttendanceClassifier.swift */,
 				9E485A37B368C4156E558471 /* Models.swift */,
 				57A1E3A618536EF5E4ABEDFD /* PTOCalculations.swift */,
+				AFB242B3A16A6AC9F0228CED /* SchedulePresentation.swift */,
 			);
 			path = Domain;
 			sourceTree = "<group>";
@@ -380,6 +383,7 @@
 				B1ECFECE937B81365C274F65 /* PTOCalculations.swift in Sources */,
 				9427BAF1B0D66BE8D65403C3 /* PTOHubApp.swift in Sources */,
 				A1F29FF76A8B494918CA7628 /* PushRegistrationManager.swift in Sources */,
+				DBA64635647463D1C80C9DD3 /* SchedulePresentation.swift in Sources */,
 				32FF579489BE6A897D05263B /* ScheduleView.swift in Sources */,
 				85FEF40947BCB4F3B1554464 /* SessionRootView.swift in Sources */,
 				4B7EF1528A05E7C9C22A9223 /* SnapshotCache.swift in Sources */,
@@ -496,7 +500,7 @@
 				CODE_SIGN_ENTITLEMENTS = PTOHub/PTOHub.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 28V3NG52GP;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -594,7 +598,7 @@
 				CODE_SIGN_ENTITLEMENTS = PTOHub/PTOHub.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 28V3NG52GP;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -685,7 +689,7 @@
 				CODE_SIGN_ENTITLEMENTS = PTOHub/PTOHub.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 28V3NG52GP;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;

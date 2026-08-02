@@ -4,70 +4,63 @@ struct ScheduleView: View {
     @Bindable var session: AppSession
     @State private var createPresented = false
     @State private var editingShift: ScheduledShift?
+    @State private var detailShift: ScheduledShift?
+    @State private var weekStart: DateOnly?
+    @State private var selectedDate: DateOnly?
+    @State private var isWideLayout = false
+    @AppStorage("schedule-rotation-hint-dismissed") private var rotationHintDismissed = false
 
     private var snapshot: DomainSnapshot? { session.snapshot }
     private var visibleShifts: [ScheduledShift] {
         guard let snapshot, let profile = session.identity?.profile else { return [] }
-        return snapshot.shifts.filter { shift in
-            if profile.role.isManager { return shift.status != .cancelled }
-            return shift.employeeID == profile.id && shift.status == .published
-        }
-    }
-    private var groups: [(DateOnly, [ScheduledShift])] {
-        Dictionary(grouping: visibleShifts, by: \.shiftDate)
-            .map { ($0.key, $0.value.sorted { $0.startsAt < $1.startsAt }) }
-            .sorted { $0.0 < $1.0 }
+        return SchedulePresentation.visibleShifts(from: snapshot.shifts, for: profile)
     }
 
     var body: some View {
         Group {
             if let snapshot {
-                List {
-                    if groups.isEmpty {
-                        ContentUnavailableView(
-                            "No scheduled shifts",
-                            systemImage: "calendar.badge.clock",
-                            description: Text("Published shifts will appear here.")
-                        )
-                    } else {
-                        ForEach(groups, id: \.0) { date, shifts in
-                            Section(AppDateFormatter.fullDate(date, timeZone: snapshot.business.timeZone)) {
-                                ForEach(shifts) { shift in
-                                    Button {
-                                        if session.canManage && !isLocked(shift, snapshot: snapshot) {
-                                            editingShift = shift
-                                        }
-                                    } label: {
-                                        ShiftRow(
-                                            shift: shift,
-                                            employee: snapshot.profiles.first(where: { $0.id == shift.employeeID }),
-                                            timeZone: snapshot.business.timeZone,
-                                            manager: session.canManage,
-                                            locked: isLocked(shift, snapshot: snapshot)
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(!session.canManage || isLocked(shift, snapshot: snapshot))
-                                }
-                            }
+                GeometryReader { geometry in
+                    let wide = geometry.size.width >= 700
+                    VStack(spacing: 0) {
+                        if !wide, !rotationHintDismissed {
+                            rotationHint
+                        }
+                        if wide {
+                            weeklyView(snapshot: snapshot)
+                        } else if session.canManage {
+                            managerDailyView(snapshot: snapshot)
+                        } else {
+                            employeeAgenda(snapshot: snapshot)
                         }
                     }
+                    .onAppear { isWideLayout = wide }
+                    .onChange(of: geometry.size.width) { _, width in isWideLayout = width >= 700 }
                 }
-                .refreshable { await session.refresh() }
+                .onAppear { openOnToday(snapshot: snapshot) }
+                .onChange(of: snapshot.business.id) { _, _ in openOnToday(snapshot: snapshot) }
                 .sheet(isPresented: $createPresented) {
                     ScheduleForm(session: session, snapshot: snapshot)
                 }
                 .sheet(item: $editingShift) { shift in
                     ShiftEditForm(session: session, snapshot: snapshot, shift: shift)
                 }
+                .sheet(item: $detailShift) { shift in
+                    ShiftDetailView(
+                        shift: shift,
+                        employee: snapshot.profiles.first(where: { $0.id == shift.employeeID }),
+                        timeZone: snapshot.business.timeZone,
+                        locked: isLocked(shift, snapshot: snapshot)
+                    )
+                }
             } else {
                 ProgressView()
             }
         }
         .navigationTitle("Schedule")
+        .toolbar(isWideLayout ? .hidden : .automatic, for: .navigationBar)
         .toolbar {
-            if session.canManage {
-                ToolbarItem(placement: .topBarLeading) {
+            if session.canManage && !isWideLayout {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Add Shift", systemImage: "plus") { createPresented = true }
                         .disabled(!session.canMutate)
                 }
@@ -75,9 +68,382 @@ struct ScheduleView: View {
         }
     }
 
+    private var rotationHint: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "rectangle.landscape.rotate")
+            Text("Rotate for weekly view")
+                .font(.subheadline.weight(.semibold))
+            Spacer()
+            Button("Dismiss", systemImage: "xmark") { rotationHintDismissed = true }
+                .labelStyle(.iconOnly)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .foregroundStyle(Color(hex: 0x273F38))
+        .background(Color(hex: 0xE9EFEB))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func weeklyView(snapshot: DomainSnapshot) -> some View {
+        let timeZone = snapshot.business.timeZone
+        let start = weekStart ?? SchedulePresentation.weekStart(containing: .today(in: timeZone), timeZone: timeZone)
+        let days = SchedulePresentation.weekDays(starting: start, timeZone: timeZone)
+        let today = DateOnly.today(in: timeZone)
+        return ScrollView {
+            VStack(spacing: 18) {
+                wideScheduleHeader(start: start, end: days.last ?? start, timeZone: timeZone)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .top), count: 7), spacing: 0) {
+                    ForEach(days, id: \.self) { date in
+                        WeekdayColumn(
+                            date: date,
+                            shifts: shifts(on: date),
+                            profiles: snapshot.profiles,
+                            timeZone: timeZone,
+                            isToday: date == today,
+                            manager: session.canManage,
+                            isLocked: { isLocked($0, snapshot: snapshot) },
+                            onTap: { open($0, snapshot: snapshot) }
+                        )
+                    }
+                }
+                .padding(8)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20))
+                .overlay(RoundedRectangle(cornerRadius: 20).stroke(.quaternary))
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
+        }
+        .refreshable { await session.refresh() }
+    }
+
+    private func managerDailyView(snapshot: DomainSnapshot) -> some View {
+        let timeZone = snapshot.business.timeZone
+        let active = selectedDate ?? .today(in: timeZone)
+        let start = weekStart ?? SchedulePresentation.weekStart(containing: active, timeZone: timeZone)
+        let days = SchedulePresentation.weekDays(starting: start, timeZone: timeZone)
+        let dayShifts = shifts(on: active)
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                scheduleHeader(start: start, end: days.last ?? start, timeZone: timeZone)
+                DateStrip(days: days, selectedDate: active, today: .today(in: timeZone), timeZone: timeZone) { selectedDate = $0 }
+                HStack {
+                    Text(AppDateFormatter.fullDate(active, timeZone: timeZone))
+                        .font(.title3.weight(.semibold))
+                    Spacer()
+                    Text(dayShifts.isEmpty ? "Open day" : "\(dayShifts.count) scheduled")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                if dayShifts.isEmpty {
+                    ContentUnavailableView(
+                        "Open day",
+                        systemImage: "sun.max",
+                        description: Text("No team shifts are scheduled.")
+                    )
+                    .frame(maxWidth: .infinity)
+                } else {
+                    ForEach(dayShifts) { shift in
+                        shiftButton(shift, snapshot: snapshot)
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
+                            .background(.background, in: RoundedRectangle(cornerRadius: 16))
+                    }
+                }
+            }
+            .padding()
+        }
+        .background(Color(.secondarySystemBackground).opacity(0.45))
+        .refreshable { await session.refresh() }
+    }
+
+    private func employeeAgenda(snapshot: DomainSnapshot) -> some View {
+        let timeZone = snapshot.business.timeZone
+        let today = DateOnly.today(in: timeZone)
+        let upcoming = visibleShifts.filter { $0.shiftDate >= today }.sorted { ($0.shiftDate, $0.startsAt) < ($1.shiftDate, $1.startsAt) }
+        let groups = Dictionary(grouping: upcoming, by: \.shiftDate).sorted { $0.key < $1.key }
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Your upcoming shifts")
+                        .font(.title2.weight(.semibold))
+                    Text("A calm look at what’s ahead.")
+                        .foregroundStyle(.secondary)
+                }
+                if groups.isEmpty {
+                    ContentUnavailableView(
+                        "No upcoming shifts",
+                        systemImage: "calendar.badge.clock",
+                        description: Text("Published shifts will appear here.")
+                    )
+                    .frame(maxWidth: .infinity)
+                } else {
+                    ForEach(groups, id: \.key) { date, shifts in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(AppDateFormatter.fullDate(date, timeZone: timeZone))
+                                .font(.headline)
+                            ForEach(shifts) { shift in shiftButton(shift, snapshot: snapshot) }
+                        }
+                        .padding()
+                        .background(.background, in: RoundedRectangle(cornerRadius: 18))
+                    }
+                }
+            }
+            .padding()
+        }
+        .background(Color(.secondarySystemBackground).opacity(0.45))
+        .refreshable { await session.refresh() }
+    }
+
+    private func scheduleHeader(start: DateOnly, end: DateOnly, timeZone: TimeZone) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.canManage ? "Team week" : "Your week")
+                    .font(.title2.weight(.semibold))
+                Text("\(shortDate(start, timeZone: timeZone)) – \(shortDate(end, timeZone: timeZone))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Previous week", systemImage: "chevron.left") { moveWeek(by: -7, timeZone: timeZone) }.labelStyle(.iconOnly)
+            Button("Today") { openOnToday(timeZone: timeZone) }.buttonStyle(.bordered)
+            Button("Next week", systemImage: "chevron.right") { moveWeek(by: 7, timeZone: timeZone) }.labelStyle(.iconOnly)
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private func wideScheduleHeader(start: DateOnly, end: DateOnly, timeZone: TimeZone) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.canManage ? "Schedule" : "Your week")
+                    .font(.title2.weight(.semibold))
+                Text("\(shortDate(start, timeZone: timeZone)) – \(shortDate(end, timeZone: timeZone))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Previous week", systemImage: "chevron.left") { moveWeek(by: -7, timeZone: timeZone) }
+                .labelStyle(.iconOnly)
+            Button("Today") { openOnToday(timeZone: timeZone) }
+            Button("Next week", systemImage: "chevron.right") { moveWeek(by: 7, timeZone: timeZone) }
+                .labelStyle(.iconOnly)
+            if session.canManage {
+                Button("Add Shift", systemImage: "plus") { createPresented = true }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!session.canMutate)
+            }
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private func shiftButton(_ shift: ScheduledShift, snapshot: DomainSnapshot) -> some View {
+        Button { open(shift, snapshot: snapshot) } label: {
+            ShiftRow(
+                shift: shift,
+                employee: snapshot.profiles.first(where: { $0.id == shift.employeeID }),
+                timeZone: snapshot.business.timeZone,
+                manager: session.canManage,
+                locked: isLocked(shift, snapshot: snapshot)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func shifts(on date: DateOnly) -> [ScheduledShift] {
+        visibleShifts.filter { $0.shiftDate == date }.sorted { $0.startsAt < $1.startsAt }
+    }
+
+    private func open(_ shift: ScheduledShift, snapshot: DomainSnapshot) {
+        if session.canManage && !isLocked(shift, snapshot: snapshot) { editingShift = shift }
+        else { detailShift = shift }
+    }
+
+    private func openOnToday(snapshot: DomainSnapshot) { openOnToday(timeZone: snapshot.business.timeZone) }
+
+    private func openOnToday(timeZone: TimeZone) {
+        let today = DateOnly.today(in: timeZone)
+        selectedDate = today
+        weekStart = SchedulePresentation.weekStart(containing: today, timeZone: timeZone)
+    }
+
+    private func moveWeek(by days: Int, timeZone: TimeZone) {
+        let current = weekStart ?? SchedulePresentation.weekStart(containing: .today(in: timeZone), timeZone: timeZone)
+        let next = current.adding(days: days, in: timeZone)
+        weekStart = next
+        selectedDate = next
+    }
+
+    private func shortDate(_ date: DateOnly, timeZone: TimeZone) -> String {
+        date.date(in: timeZone).formatted(.dateTime.month(.abbreviated).day())
+    }
+
     private func isLocked(_ shift: ScheduledShift, snapshot: DomainSnapshot) -> Bool {
         shift.shiftDate < .today(in: snapshot.business.timeZone)
             || snapshot.timesheets.contains(where: { $0.scheduledShiftID == shift.id })
+    }
+}
+
+private struct DateStrip: View {
+    let days: [DateOnly]
+    let selectedDate: DateOnly
+    let today: DateOnly
+    let timeZone: TimeZone
+    let onSelect: (DateOnly) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(days, id: \.self) { date in
+                    Button { onSelect(date) } label: {
+                        VStack(spacing: 4) {
+                            Text(date.date(in: timeZone).formatted(.dateTime.weekday(.narrow))).font(.caption.weight(.semibold))
+                            Text("\(date.day)").font(.headline)
+                            Circle().frame(width: 4, height: 4).opacity(date == today ? 1 : 0)
+                        }
+                        .frame(width: 48, height: 64)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(date == selectedDate ? .white : .primary)
+                    .background(date == selectedDate ? Color.accentColor : Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+                    .accessibilityLabel(AppDateFormatter.fullDate(date, timeZone: timeZone))
+                    .accessibilityAddTraits(date == selectedDate ? .isSelected : [])
+                }
+            }
+        }
+    }
+}
+
+private struct WeekdayColumn: View {
+    let date: DateOnly
+    let shifts: [ScheduledShift]
+    let profiles: [StaffProfile]
+    let timeZone: TimeZone
+    let isToday: Bool
+    let manager: Bool
+    let isLocked: (ScheduledShift) -> Bool
+    let onTap: (ScheduledShift) -> Void
+
+    var body: some View {
+        VStack(spacing: 4) {
+            VStack(spacing: 2) {
+                Text(date.date(in: timeZone).formatted(.dateTime.weekday(.abbreviated))).font(.caption.weight(.semibold)).textCase(.uppercase)
+                Text("\(date.day)").font(.title3.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .foregroundStyle(isToday ? Color.accentColor : .primary)
+            Divider()
+            VStack(spacing: 3) {
+                ForEach(shifts) { shift in
+                    Button { onTap(shift) } label: {
+                        WeekShiftCard(
+                            shift: shift,
+                            employee: profiles.first(where: { $0.id == shift.employeeID }),
+                            timeZone: timeZone,
+                            manager: manager,
+                            locked: isLocked(shift)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                if shifts.isEmpty {
+                    Text("Open")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 156, alignment: .top)
+            Spacer(minLength: 0)
+            Text(shifts.isEmpty ? "No shifts" : "\(shifts.count) shift\(shifts.count == 1 ? "" : "s")")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 5)
+        .frame(maxWidth: .infinity, minHeight: 240, alignment: .top)
+        .background(isToday ? Color.accentColor.opacity(0.06) : Color.clear)
+        .overlay(alignment: .leading) { Divider() }
+        .overlay { if isToday { RoundedRectangle(cornerRadius: 12).stroke(Color.accentColor, lineWidth: 1.5) } }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(AppDateFormatter.fullDate(date, timeZone: timeZone))
+    }
+}
+
+private struct WeekShiftCard: View {
+    let shift: ScheduledShift
+    let employee: StaffProfile?
+    let timeZone: TimeZone
+    let manager: Bool
+    let locked: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if let employee {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color(hexString: employee.avatarColor))
+                    .frame(width: 3)
+                    .accessibilityHidden(true)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                if manager, let employee {
+                    Text(employee.name.split(separator: " ").first.map(String.init) ?? employee.name)
+                        .font(.caption2.weight(.semibold))
+                        .lineLimit(1)
+                }
+                Text("\(AppDateFormatter.time(shift.startsAt, timeZone: timeZone))–\(AppDateFormatter.time(shift.endsAt, timeZone: timeZone))")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                if shift.status == .draft || !shift.warningFlags.isEmpty || shift.isSeriesOverride {
+                    HStack(spacing: 2) {
+                        Image(systemName: shift.warningFlags.isEmpty ? "pencil.circle" : "exclamationmark.triangle")
+                        Text(shift.status == .draft ? "Draft" : (shift.isSeriesOverride ? "Modified" : "Check"))
+                    }
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(shift.warningFlags.isEmpty ? Color.secondary : Color.orange)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
+        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 9))
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(.quaternary))
+        .overlay(alignment: .topTrailing) {
+            if locked { Image(systemName: "lock.fill").font(.system(size: 7)).foregroundStyle(.tertiary).padding(5) }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ShiftDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+    let shift: ScheduledShift
+    let employee: StaffProfile?
+    let timeZone: TimeZone
+    let locked: Bool
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Shift") {
+                    if let employee { LabeledContent("Team member", value: employee.name) }
+                    LabeledContent("Date", value: AppDateFormatter.fullDate(shift.shiftDate, timeZone: timeZone))
+                    LabeledContent("Hours", value: "\(AppDateFormatter.time(shift.startsAt, timeZone: timeZone))–\(AppDateFormatter.time(shift.endsAt, timeZone: timeZone))")
+                    LabeledContent("Status", value: shift.status.rawValue.capitalized)
+                }
+                if !shift.breaks.isEmpty {
+                    Section("Breaks") {
+                        ForEach(shift.breaks) { item in LabeledContent(item.type.label, value: "\(item.durationMinutes) min") }
+                    }
+                }
+                if let notes = shift.notes, !notes.isEmpty { Section("Notes") { Text(notes) } }
+                if locked { Section { Label("This shift is locked by date or timesheet activity.", systemImage: "lock.fill") } }
+            }
+            .navigationTitle(shift.title.isEmpty ? "Shift details" : shift.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
     }
 }
 

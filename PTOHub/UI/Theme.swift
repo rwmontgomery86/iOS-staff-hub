@@ -9,6 +9,8 @@ struct BusinessTheme {
 
     static func theme(for key: String?) -> BusinessTheme {
         switch key {
+        case "staff-hub":
+            .init(primary: Color(hex: 0x273F38), secondary: Color(hex: 0x345349), accent: Color(hex: 0xC18A65), accentSoft: Color(hex: 0xEAD9CB), wash: Color(hex: 0xE9EFEB))
         case "senoia-eye-care":
             .init(primary: Color(hex: 0x4A4142), secondary: Color(hex: 0x64595A), accent: Color(hex: 0x8C6C12), accentSoft: Color(hex: 0xEBDFB5), wash: Color(hex: 0xF0ECE3))
         case "maxara":
@@ -37,6 +39,30 @@ struct BrandLogo: View {
             .resizable()
             .scaledToFit()
             .accessibilityLabel(business?.name ?? "Staff Hub")
+    }
+}
+
+struct StaffHubMark: View {
+    var compact = false
+
+    var body: some View {
+        HStack(spacing: compact ? 9 : 12) {
+            Image(systemName: "camera.aperture")
+                .font(.system(size: compact ? 25 : 34, weight: .light))
+            VStack(alignment: .leading, spacing: 0) {
+                Text("STAFF HUB")
+                    .font(.system(size: compact ? 16 : 21, weight: .semibold, design: .rounded))
+                    .tracking(compact ? 1.8 : 2.6)
+                if !compact {
+                    Text("SCHEDULE · TIME OFF · TEAM")
+                        .font(.system(size: 8, weight: .medium, design: .rounded))
+                        .tracking(1.2)
+                        .opacity(0.72)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Staff Hub")
     }
 }
 
@@ -99,7 +125,7 @@ struct ProfileAvatar: View {
     }
 }
 
-private extension Color {
+extension Color {
     init(hexString: String) {
         let cleaned = hexString.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         let value = UInt32(cleaned, radix: 16) ?? 0x6F7773
