@@ -241,7 +241,7 @@ private struct DemoFixture {
             )]
         }
 
-        let todayShiftIDs = (0..<3).map { _ in UUID() }
+        let todayShiftIDs = (0..<5).map { _ in UUID() }
         let weekStart = SchedulePresentation.weekStart(containing: today, timeZone: business.timeZone)
         let day = { (offset: Int) in weekStart.adding(days: offset, in: business.timeZone) }
         var shifts = [
@@ -282,9 +282,11 @@ private struct DemoFixture {
             shift(id: todayShiftIDs[0], business: business, employee: employee, date: today, start: "08:00", end: "17:00", title: "Patient care"),
             shift(id: todayShiftIDs[1], business: business, employee: secondEmployee, date: today, start: "08:30", end: "17:30", title: "Optical floor"),
             shift(id: todayShiftIDs[2], business: business, employee: thirdEmployee, date: today, start: "10:00", end: "18:00", title: "Front desk"),
-            shift(id: UUID(), business: business, employee: manager, date: today, start: "08:00", end: "16:00", title: "Manager coverage"),
-            shift(id: UUID(), business: business, employee: owner, date: today, start: "09:00", end: "14:00", title: "Clinic coverage"),
+            shift(id: todayShiftIDs[3], business: business, employee: manager, date: today, start: "08:00", end: "16:00", title: "Manager coverage"),
+            shift(id: todayShiftIDs[4], business: business, employee: owner, date: today, start: "09:00", end: "14:00", title: "Clinic coverage"),
         ]
+        let todayShiftIDSet = Set(todayShiftIDs)
+        shifts.removeAll { $0.shiftDate == today && !todayShiftIDSet.contains($0.id) }
         if business.id != griffinID {
             shifts = Array(shifts.filter { $0.shiftDate == today }.prefix(3))
         }

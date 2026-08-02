@@ -286,6 +286,27 @@ final class PTOHubTests: XCTestCase {
     }
 
 #if DEBUG && targetEnvironment(simulator)
+    func testDemoSchedulesSeedTodayOnceAndKeepTimesheetLinksValid() async throws {
+        let backend = DemoBackend(role: .ownerAdmin)
+        let currentUserID = await backend.currentUserID()
+        let userID = try XCTUnwrap(currentUserID)
+        let identity = try await backend.loadIdentity(authUserID: userID)
+
+        for business in identity.businesses {
+            let snapshot = try await backend.loadSnapshot(profile: identity.profile, business: business)
+            let today = DateOnly.today(in: business.timeZone)
+            let todayShifts = snapshot.shifts.filter { $0.shiftDate == today }
+            let expectedCount = business.id == identity.profile.businessID ? 5 : 3
+
+            XCTAssertEqual(todayShifts.count, expectedCount, business.name)
+            XCTAssertEqual(Set(todayShifts.map(\.employeeID)).count, todayShifts.count, business.name)
+
+            let shiftIDs = Set(snapshot.shifts.map(\.id))
+            let linkedShiftIDs = snapshot.timesheets.compactMap(\.scheduledShiftID)
+            XCTAssertTrue(linkedShiftIDs.allSatisfy(shiftIDs.contains), business.name)
+        }
+    }
+
     func testDemoEmployeeLoadsOnlyTheirOperationalDataAndCanSubmitLocally() async throws {
         let backend = DemoBackend(role: .employee)
         let currentUserID = await backend.currentUserID()
